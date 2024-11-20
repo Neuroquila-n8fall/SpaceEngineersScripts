@@ -11,10 +11,10 @@ Description:
 ________________________________________________
 How do I use this?
 
-    1) Place this program on your main grid (the grid your control seat is on)
+    1) Place this program on your main grid (the grid your control seat is on). A controller which has "Reference" in its name will take precedence over all others.
 
     2) Make a group with all of your gravity drive artificial masses and gravity gens. Name it "Gravity Drive"
-    
+
     3) Enjoy!
 ________________________________________________
 Arguments
@@ -37,9 +37,9 @@ Author's Notes
 const string gravityDriveGroupName = "Gravity Drive";
 
 float gravityDriveDampenerScalingFactor = 1f; //The lighter your ship, the smaller this should be
-                                                 //larger values will quicken the dampening using gravity gens but will also risk causing oscillations
+                                              //larger values will quicken the dampening using gravity gens but will also risk causing oscillations
 
-double disableSpeedThreshold = 1; //Speed in m/s at which the code will turn off gravity drives. Zero means that the drive will never turn off (useful for ships with no thrusters)
+double disableSpeedThreshold = 0.5; //Speed in m/s at which the code will turn off gravity drives. Zero means that the drive will never turn off (useful for ships with no thrusters)
 
 bool turnOffRegularGravityInFlight = false;
 
@@ -173,7 +173,7 @@ void ProcessArguments(string arg)
 int runningSymbolVariant = 0;
 int runningSymbolCount = 0;
 const int increment = 1;
-string[] runningSymbols = new string[] {"−", "\\", "|", "/"};
+string[] runningSymbols = new string[] { "−", "\\", "|", "/" };
 
 string RunningSymbol()
 {
@@ -209,7 +209,7 @@ bool GrabBlocks()
     GetAllowedGrids(Me, 5000);
     if (!isFinished)
         return false;
-    
+
     shipControllers.Clear();
     gravityGens.Clear();
     upGens.Clear();
@@ -228,7 +228,7 @@ bool GrabBlocks()
     GridTerminalSystem.GetBlocksOfType(onGridThrust, x => x.CubeGrid == Me.CubeGrid);
     GridTerminalSystem.GetBlocksOfType(gyros, x => x.CubeGrid == Me.CubeGrid && !x.CustomName.ToUpperInvariant().Contains(gyroIgnoreNameTag.ToUpperInvariant()));
     gravityDriveGroup = GridTerminalSystem.GetBlockGroupWithName(gravityDriveGroupName);
-    
+
     #region block_check
     bool critFailure = false;
     if (gravityDriveGroup == null)
@@ -262,7 +262,9 @@ bool GrabBlocks()
     }
     else
     {
-        var controller = shipControllers[0];
+        // Check if there is a controller named "Reference" and if not, pick the first controller on the ship.
+        var controller = shipControllers.Any(c => c.CustomName.Contains("Reference")) ? shipControllers.First(c => c.CustomName.Contains("Reference")) : shipControllers.First();
+        
         foreach (var block in gravityGens)
         {
             if (controller.WorldMatrix.Forward == block.WorldMatrix.Down)
@@ -306,7 +308,7 @@ void OverrideGyros(bool overrideOn, IMyShipController reference, Vector2 mouseIn
     var localAngularDeviation = new Vector3D(-pitch, yaw, roll);
     var worldAngularDeviation = Vector3D.TransformNormal(localAngularDeviation, reference.WorldMatrix);
     var worldAngularVelocity = worldAngularDeviation / timeMaxCycle;
-    
+
     var localMouseInput = new Vector3(mouseInput.X, mouseInput.Y, rollInput);
 
     //var worldMouseInput = Vector3D.TransformNormal(localMouseInput, reference.WorldMatrix);
@@ -323,7 +325,7 @@ void OverrideGyros(bool overrideOn, IMyShipController reference, Vector2 mouseIn
             var gyroAngularVelocity = Vector3D.TransformNormal(worldAngularVelocity, MatrixD.Transpose(block.WorldMatrix));
             //var gyroMouseInput = Vector3D.TransformNormal(worldMouseInput, MatrixD.Transpose(block.WorldMatrix));
             gyroAngularVelocity *= updatesPerSecond / 60.0;
-            
+
             block.Pitch = (float)Math.Round(gyroAngularVelocity.X, 2);
             block.Yaw = (float)Math.Round(gyroAngularVelocity.Y, 2);
             block.Roll = (float)Math.Round(gyroAngularVelocity.Z, 2);
@@ -405,7 +407,7 @@ void ManageGravDrive(bool turnOn)
     var desiredDirection = Vector3D.TransformNormal(inputVec, referenceMatrix);
     var shipMass = reference.CalculateShipMass().PhysicalMass;
     var virtualMass = artMasses.Count * 50000d;
-    
+
     if (!Vector3D.IsZero(desiredDirection))
     {
         desiredDirection = Vector3D.Normalize(desiredDirection);
@@ -433,7 +435,7 @@ void ManageGravDrive(bool turnOn)
         if (turnOffRegularGravityInFlight)
             SetGravityPower(regularGens, false);
         if (useGyrosToStabilize)
-                OverrideGyros(true, reference, mouseInputVec, rollVec);
+            OverrideGyros(true, reference, mouseInputVec, rollVec);
     }
 }
 
@@ -451,7 +453,7 @@ IMyShipController GetControlledShipController(List<IMyShipController> SCs)
 void ToggleDirectionalGravity(Vector3D direction, Vector3D velocityVec, bool turnOn, bool dampenersOn, double shipMass, double virtualMass)
 {
     double massRatio = shipMass / virtualMass;
-    
+
     //Handle on grid grav gens
     foreach (var list in gravityList)
     {
@@ -467,7 +469,7 @@ void ToggleDirectionalGravity(Vector3D direction, Vector3D velocityVec, bool tur
             double gravThrustRatio = referenceGen.WorldMatrix.Down.Dot(direction);
             double gravDampingRatio = dampenersOn ? referenceGen.WorldMatrix.Up.Dot(velocityVec) / list.Count * massRatio : 0;
             double desiredAccel = 0;
-            
+
             if (gravThrustRatio == 0 && gravDampingRatio == 0)
             {
                 SetGravityAcceleration(list, 0f);
@@ -497,7 +499,7 @@ void ToggleDirectionalGravity(Vector3D direction, Vector3D velocityVec, bool tur
                         desiredAccel = Math.Min(desiredAccel, dampenerOverride);
                 }
             }
-            
+
             SetGravityAcceleration(list, (float)desiredAccel);
         }
         else
@@ -514,11 +516,11 @@ void ToggleDirectionalGravity(Vector3D direction, Vector3D velocityVec, bool tur
         {
             if (!thisGravGen.Enabled)
                 thisGravGen.Enabled = true;
-            
+
             double gravThrustRatio = thisGravGen.WorldMatrix.Down.Dot(direction);
             double gravDampingRatio = dampenersOn ? thisGravGen.WorldMatrix.Up.Dot(velocityVec) * .25 : 0;
             double desiredAccel = 0;
-            
+
             if (gravThrustRatio == 0 && gravDampingRatio == 0)
             {
                 thisGravGen.GravityAcceleration = 0f;
@@ -548,7 +550,7 @@ void ToggleDirectionalGravity(Vector3D direction, Vector3D velocityVec, bool tur
                         desiredAccel = Math.Min(desiredAccel, dampenerOverride);
                 }
             }
-            
+
             thisGravGen.GravityAcceleration = (float)desiredAccel;
         }
         else
